@@ -181,7 +181,8 @@ kbd{
 .dial{width:136px;height:136px;transform:rotate(135deg)}
 .dial-track,.dial-fill{fill:none;stroke-width:8;stroke-linecap:round}
 .dial-track{stroke:var(--tint-2);stroke-dasharray:245 327}
-.dial-fill{stroke:var(--teal);stroke-dasharray:0 327;transition:stroke-dasharray .12s linear}
+.dial-fill{stroke:var(--teal);stroke-dasharray:0 327;transition:stroke-dasharray .12s linear,stroke .25s var(--ease)}
+.dial-fill.boost{stroke:var(--yellow)}
 .speedo-read{position:absolute;text-align:center;line-height:1}
 .speedo-read b{font-size:36px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink)}
 .speedo-read i{display:block;font-style:normal;font-size:9.5px;letter-spacing:.22em;color:var(--ink-faint);margin-top:6px;font-weight:500}

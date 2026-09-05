@@ -24,6 +24,7 @@ export class PathBuilder {
     this.ups = [UP.clone()];      // analytic "which way is up for the car" per sample
     this.step = 1.6;              // sample spacing (world units)
     this.marks = [];              // named sections for the HUD
+    this.zones = [];              // boost pads, tunnels
   }
 
   get forward() {
@@ -35,6 +36,54 @@ export class PathBuilder {
   _push(p, up = UP) { this.pts.push(p.clone()); this.ups.push(up.clone().normalize()); this.pos.copy(p); }
 
   mark(name) { this.marks.push({ name, index: this.pts.length - 1 }); return this; }
+
+  /** Open a named feature zone (boost pad, tunnel) at the current position. */
+  zone(type) { this.zones.push({ type, i0: this.pts.length - 1, i1: this.pts.length - 1 }); return this; }
+  /** Close the most recently opened zone here. */
+  endZone() { this.zones[this.zones.length - 1].i1 = this.pts.length - 1; return this; }
+
+  /** Straight with an eased sideways step — a lane change. Heading unchanged. */
+  shift(len, side, dy = 0) {
+    const f = this.forward, r = this.right, s = this.pos.clone();
+    const n = Math.max(10, Math.round(len / this.step));
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      const p = s.clone()
+        .addScaledVector(f, len * t)
+        .addScaledVector(r, side * ease(t));
+      p.y = s.y + dy * ease(t);
+      this._push(p);
+    }
+    return this;
+  }
+
+  /** Out and back again — a chicane. Net sideways movement is zero. */
+  chicane(len, offset) {
+    const f = this.forward, r = this.right, s = this.pos.clone();
+    const n = Math.max(20, Math.round(len / this.step));
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      const p = s.clone()
+        .addScaledVector(f, len * t)
+        .addScaledVector(r, offset * 0.5 * (1 - Math.cos(Math.PI * 2 * t)));
+      p.y = s.y;
+      this._push(p);
+    }
+    return this;
+  }
+
+  /** Washboard rollers. `count` whole bumps, so it starts and ends flat. */
+  rollers(len, height, count = 3) {
+    const f = this.forward, s = this.pos.clone();
+    const n = Math.max(30, Math.round(len / 0.7));
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      const p = s.clone().addScaledVector(f, len * t);
+      p.y = s.y + height * 0.5 * (1 - Math.cos(Math.PI * 2 * count * t));
+      this._push(p);
+    }
+    return this;
+  }
 
   /** Flat or sloped straight. */
   straight(len, dy = 0) {
@@ -263,33 +312,154 @@ function extrude(frames, profile, uvRepeat = 1) {
   return g;
 }
 
+/**
+ * Extrude a profile over a slice of the path only, optionally leaving the
+ * profile open (a shell rather than a tube). Used for boost pads and tunnels.
+ */
+function extrudeRange(frames, profile, i0, i1, uvRepeat = 1, closedProfile = false) {
+  const { points, normals, binormals, count } = frames;
+  const np = profile.length;
+  const rings = [];
+  for (let i = i0; i !== (i1 + 1) % count; i = (i + 1) % count) {
+    rings.push(i);
+    if (rings.length > count) break;
+  }
+
+  const pos = [], uv = [], idx = [];
+  rings.forEach((k, ri) => {
+    const P = points[k], N = normals[k], B = binormals[k];
+    for (let j = 0; j < np; j++) {
+      const [u, v] = profile[j];
+      pos.push(P.x + B.x * u + N.x * v, P.y + B.y * u + N.y * v, P.z + B.z * u + N.z * v);
+      uv.push(j / (np - 1), (ri / (rings.length - 1)) * uvRepeat);
+    }
+  });
+
+  const lastJ = closedProfile ? np : np - 1;
+  for (let i = 0; i < rings.length - 1; i++) {
+    for (let j = 0; j < lastJ; j++) {
+      const j2 = (j + 1) % np;
+      const a = i * np + j, b = i * np + j2, c = (i + 1) * np + j2, d = (i + 1) * np + j;
+      idx.push(a, b, c, a, c, d);
+    }
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Forward-pointing chevrons for the boost pads. */
+function chevronTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 128, 128);
+  x.fillStyle = '#4fd1c5';
+  x.beginPath();
+  x.moveTo(8, 96); x.lineTo(64, 24); x.lineTo(120, 96);
+  x.lineTo(120, 118); x.lineTo(64, 46); x.lineTo(8, 118);
+  x.closePath(); x.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+/** Boost pads and tunnels, laid over the finished ribbon. */
+function buildZones(frames, zones, HW) {
+  const group = new THREE.Group();
+  group.name = 'zones';
+  if (!zones || !zones.length) return group;
+
+  const boostMat = new THREE.MeshBasicMaterial({
+    map: chevronTexture(), transparent: true, depthWrite: false,
+  });
+  const tunnelMat = new THREE.MeshStandardMaterial({
+    color: 0x2bb3a3, roughness: 0.55, metalness: 0.1, side: THREE.DoubleSide,
+  });
+
+  for (const z of zones) {
+    const i0 = Math.round(z.u0 * frames.count) % frames.count;
+    const i1 = Math.round(z.u1 * frames.count) % frames.count;
+    if (i0 === i1) continue;
+
+    if (z.type === 'boost') {
+      const span = (i1 - i0 + frames.count) % frames.count;
+      const geo = extrudeRange(frames, [[-2.6, 0.06], [2.6, 0.06]], i0, i1, span / 26);
+      group.add(new THREE.Mesh(geo, boostMat));
+
+    } else if (z.type === 'tunnel') {
+      const R = HW + 1.3, arc = [];
+      for (let k = 0; k <= 14; k++) {
+        const th = (k / 14) * Math.PI;
+        arc.push([-R * Math.cos(th), R * Math.sin(th) * 0.86 + 0.1]);
+      }
+      const shell = new THREE.Mesh(extrudeRange(frames, arc, i0, i1), tunnelMat);
+      shell.castShadow = true;
+      group.add(shell);
+
+      // ribs, so it reads as a structure rather than a pipe
+      const ribMat = new THREE.MeshStandardMaterial({ color: 0x0f3d3c, roughness: 0.6 });
+      const span = (i1 - i0 + frames.count) % frames.count;
+      for (let r = 0; r <= 4; r++) {
+        const a = (i0 + Math.round((span * r) / 4)) % frames.count;
+        const b = (a + 3) % frames.count;
+        const ribArc = arc.map(([u, v]) => [u * 1.04, v * 1.04]);
+        group.add(new THREE.Mesh(extrudeRange(frames, ribArc, a, b), ribMat));
+      }
+    }
+  }
+  return group;
+}
+
 /* ---------------------------------------------------------
    The circuit layout. Closes exactly:
    4 × 90° right turns (same radius) + equal opposite straights.
 --------------------------------------------------------- */
 export function buildCircuit() {
-  const pb = new PathBuilder(-47, 5, -61, 0);
+  const pb = new PathBuilder(-80, 5, -71, 0);
 
-  // ── side A (+X) : start/finish straight → giant vertical loop ──
-  pb.mark('Start / Finish').straight(30);
-  pb.mark('The Loop').loop(12, 0, 11).straight(48);
+  // ── side A (+X) : start line, the big loop, a boost strip, a chicane ──
+  pb.mark('Start / Finish').straight(24);
+  pb.mark('The Loop').loop(12, 0, 11);
+  pb.straight(6);
+  pb.mark('Boost Strip').zone('boost').straight(14).endZone();
+  pb.mark('Chicane').chicane(44, 7);
+  pb.straight(20);
+  //                                    24 + 0 + 6 + 14 + 44 + 20 = 108
 
-  pb.mark('Turn 1 — Skyline').turn(90, 26, 6);
+  pb.mark('Turn 1 — Skyline').turn(90, 26, 7);
 
-  // ── side B (+Z) : elevated jump ──
-  pb.straight(10).mark('Big Air').hill(50, 15).straight(10);
+  // ── side B (+Z) : the jump, then a second, tighter loop ──
+  pb.straight(12);
+  pb.mark('Big Air').hill(52, 16);
+  pb.straight(14);
+  pb.mark('Double Loop').loop(9, 0, 9);
+  pb.straight(12);
+  //                                    12 + 52 + 14 + 0 + 12 = 90
 
-  pb.mark('Turn 2 — Downtown').turn(90, 26, -6);
+  pb.mark('Turn 2 — Downtown').turn(90, 26, -7);
 
-  // ── side C (−X) : corkscrew ──
-  // the corkscrew runs the other way round the circuit, so an identical
-  // sideways drift here cancels the loop's and the lap still closes
-  pb.straight(18).mark('Corkscrew').corkscrew(50, 9, 1, 11).straight(10);
+  // ── side C (−X) : corkscrew, covered tunnel, rollers ──
+  pb.straight(10);
+  pb.mark('Corkscrew').corkscrew(50, 9, 1, 11);
+  pb.mark('Tunnel').zone('tunnel').straight(18).endZone();
+  // gentle: 3 bumps over 24 units gives a 1.5-unit radius at each crest, which
+  // spins the frames 12° between samples and creases the ribbon
+  pb.mark('Rollers').rollers(30, 1.4, 2);
+  //                                    10 + 50 + 18 + 30 = 108  (matches side A)
 
   pb.mark('Turn 3 — The Sweeper').turn(90, 26);
 
-  // ── side D (−Z) : sweeping run home ──
-  pb.mark('Back Straight').hill(70, -2.5);
+  // ── side D (−Z) : sweep home. The sideways step here cancels the second
+  //    loop's drift, exactly as the corkscrew cancels the first loop's ──
+  pb.shift(30, 9);
+  pb.mark('Back Straight').hill(40, -3);
+  pb.mark('Final Boost').zone('boost').straight(20).endZone();
+  //                                    30 + 40 + 20 = 90  (matches side B)
 
   pb.mark('Turn 4 — Final').turn(90, 26);
 
@@ -301,18 +471,37 @@ export function buildCircuit() {
   const lengths = curve.getLengths();
   const total = lengths[lengths.length - 1];
   const P = curve.points.length;
-  const marks = pb.marks.map(m => {
-    const t = (m.index % P) / P;
-    return { name: m.name, u: lengths[Math.round(t * (lengths.length - 1))] / total };
-  }).sort((a, b) => a.u - b.u);
+  const toU = i => lengths[Math.round(((i % P) / P) * (lengths.length - 1))] / total;
 
-  return { curve, ups, marks };
+  const marks = pb.marks.map(m => ({ name: m.name, u: toU(m.index) })).sort((a, b) => a.u - b.u);
+  const zones = pb.zones.map(z => ({ type: z.type, u0: toU(z.i0), u1: toU(z.i1) }));
+
+  return { curve, ups, marks, zones };
 }
 
 /* ---------------------------------------------------------
    Track mesh: road bed + two rails + glow strips + pillars
 --------------------------------------------------------- */
-export function buildTrackMesh(frames) {
+/**
+ * Thin the driving frames before extruding. The car needs 2400 samples to move
+ * smoothly, but the ribbon does not need a ring every 0.24 units — at 1200 the
+ * mesh is visually identical and the track stops being 55% of the scene's
+ * triangles. `step` must divide count exactly so the loop still wraps.
+ */
+function decimate(frames, step) {
+  const idx = [];
+  for (let i = 0; i < frames.count; i += step) idx.push(i);
+  return {
+    points: idx.map(i => frames.points[i]),
+    tangents: idx.map(i => frames.tangents[i]),
+    normals: idx.map(i => frames.normals[i]),
+    binormals: idx.map(i => frames.binormals[i]),
+    count: idx.length,
+  };
+}
+
+export function buildTrackMesh(driveFrames, zones) {
+  const frames = decimate(driveFrames, driveFrames.count % 2 === 0 ? 2 : 1);
   const HW = 3.9;        // half width (wide enough for two cars abreast)
   const DECK = 0.42;     // deck thickness
   const RAIL_H = 1.15;
@@ -369,10 +558,10 @@ export function buildTrackMesh(frames) {
 
   // support pillars -----------------------------------------
   const pillarMat = new THREE.MeshStandardMaterial({ color: 0xe4dccb, roughness: 0.62, metalness: 0.15 });
-  const { points, normals, count } = frames;
+  const { points, normals, count } = driveFrames;
   const pillarGeo = new THREE.CylinderGeometry(0.7, 1.15, 1, 10);
   const spots = [];
-  for (let i = 0; i < count; i += 44) {
+  for (let i = 0; i < count; i += 88) {
     const p = points[i];
     if (p.y < 3.2 || normals[i].y < 0.55) continue;   // skip low / inverted track
     spots.push(p);
@@ -389,7 +578,8 @@ export function buildTrackMesh(frames) {
   group.add(pillars);
 
   // start / finish gantry ----------------------------------
-  group.add(startGate(frames, HW));
+  group.add(startGate(driveFrames, HW));
+  group.add(buildZones(driveFrames, zones, HW));
 
   return group;
 }

@@ -3,7 +3,7 @@
 # HOTLAP — Hot Wheels Game Concept
 
 **Interactive 3D track experience · three.js · flat-illustration UI**
-A die-cast orange circuit with a vertical loop, corkscrew and jump ramp, running through a bright toy city.
+A die-cast orange circuit with two loops, a corkscrew, boost pads and a tunnel, running through a block-grid toy city.
 Deep teal ink, cream surfaces, script-and-caps typography.
 
 [![Live Site](https://img.shields.io/badge/Live-kymy07.github.io%2FHotWheel__Game__Concept__Website-e07a5f?style=for-the-badge)](https://kymy07.github.io/HotWheel_Game_Concept_Website/)
@@ -39,11 +39,13 @@ billboards are all built at runtime from geometry primitives, so the whole site 
 | 🔄 **Loop & corkscrew** | The car rolls fully upside down through the loop and barrel-rolls through the corkscrew, driven by analytic up vectors rather than parallel transport |
 | 🚗 **Five cars** | Blaze GT, Apex F1, Volt Hyper, Titan 4×4, Retro '68 — each modelled from code with its own silhouette, and stats that actually feed the driving model |
 | 🎥 **Four cameras** | Cinematic fly-around, chase cam that trails *along the curve*, hood cam, and free orbit — grab the scene at any time to look around |
-| 🏙️ **Toy city** | 190 candy-coloured towers, double-sided billboards, drifting clouds and a bright gradient sky — all instanced into 5 draw calls |
+| 🏙️ **Block-grid city** | Asphalt roads with lane markings and zebra crossings, parks with trees, ~190 towers lining the streets, drifting clouds |
+| 🚂 **A train** | Does slow laps of the city on its own rails — five carriages baked into four draw calls |
+| 🚀 **Track features** | Boost pads, a covered tunnel, a chicane, washboard rollers and a second loop |
 | 🎨 **Flat-illustration UI** | Deep teal ink on frosted cream cards, one bright yellow accent, pill buttons — Dancing Script paired with heavy Poppins caps |
 | 📊 **Live telemetry** | Speedometer, lap counter, lap and best-lap times, current track section, G-force meter |
 | 🔊 **Synth engine note** | Web Audio oscillators pitched to the car's speed, off by default |
-| ✨ **4× MSAA** | The composer renders into a multisampled target, so edges stay clean — `antialias: true` on the renderer does nothing once post-processing is on |
+| ✨ **Native MSAA** | No post-processing at all: a daylight scene gains almost nothing from bloom, and dropping the composer hands antialiasing back to the driver, which is far cheaper |
 | ⚡ **Adaptive quality** | Frame rate is sampled continuously; resolution and bloom step down automatically if the GPU falls behind |
 | 📱 **Responsive** | Panels reflow down to mobile; every animation stops under `prefers-reduced-motion` |
 
@@ -51,20 +53,31 @@ billboards are all built at runtime from geometry primitives, so the whole site 
 
 ## The Circuit
 
-One closed lap, 585 units long, divided into named sections that the telemetry panel
+One closed lap, 735 units long, divided into named sections that the telemetry panel
 reports as the car passes through them.
 
 | Section | What happens |
 |---|---|
 | **Start / Finish** | Flat straight under the gantry |
-| **The Loop** | Full vertical loop-the-loop; it drifts sideways as it goes round so the climb and the descent pass beside each other |
-| **Turn 1 — Skyline** | Banked right-hander climbing 6 units |
+| **The Loop** | Full vertical loop-the-loop, drifting sideways so the climb and the descent pass beside each other |
+| **Boost Strip** | Chevron pads — 1.55× target speed while the car is on them |
+| **Chicane** | Out and back again, no net sideways movement |
+| **Turn 1 — Skyline** | Banked right-hander climbing 7 units |
 | **Big Air** | Elevated jump ramp over the rooftops |
+| **Double Loop** | A second, tighter loop at the far end |
 | **Turn 2 — Downtown** | Banked descent back to street level |
 | **Corkscrew** | 360° barrel roll along the back section |
+| **Tunnel** | Covered, ribbed section |
+| **Rollers** | Washboard bumps |
 | **Turn 3 — The Sweeper** | Banked sweeper past the billboards |
 | **Back Straight** | Dipped run home |
+| **Final Boost** | Second set of pads onto the last corner |
 | **Turn 4 — Final** | Last corner onto the start line |
+
+The lap closes because it is a rounded rectangle — four 90° turns of equal radius with
+opposite straights of equal length — and because every sideways drift is cancelled by an
+equal one on the other side of the circuit: the first loop by the corkscrew, the second
+loop by the lane change on the back straight.
 
 ---
 
@@ -104,7 +117,7 @@ carry more speed through the corners.
 **Frontend** — HTML5 · CSS3 (custom properties, grid, flexbox, `backdrop-filter`) · vanilla JavaScript (ES modules)
 **Type** — Poppins (300–800) · Dancing Script (600–700)
 **Graphics** — three.js r160 · WebGL 2 · custom GLSL skydome · instanced rendering · UnrealBloom post-processing
-**Geometry** — CatmullRom curves · custom profile extrusion · procedural canvas textures
+**Geometry** — CatmullRom curves · custom profile extrusion · instancing and geometry merging · procedural canvas textures
 **Audio** — Web Audio API oscillators
 **Fonts** — Inter · Orbitron (Google Fonts)
 **Hosting** — GitHub Pages via GitHub Actions
@@ -126,7 +139,7 @@ HotWheel_Game_Concept_Website/
 │   ├── app.js                 # scene, driving model, cameras, UI, audio
 │   ├── track.js               # PathBuilder → closed circuit, frames, track mesh
 │   ├── cars.js                # five procedural car models
-│   └── city.js                # skydome, ground, instanced skyline, billboards
+│   └── city.js                # sky, roads, parks, skyline, billboards, train
 ├── tests/
 │   └── geometry.test.mjs      # headless checks on the generated geometry
 ├── docs/screenshots/          # images used in this README

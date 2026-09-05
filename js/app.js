@@ -4,14 +4,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { buildCircuit, computeFrames, buildTrackMesh } from './track.js';
 import { CARS, makeCar } from './cars.js';
-import { makeSky, makeGround, makeCity } from './city.js';
+import { makeSky, makeGround, makeCity, updateCity } from './city.js';
 
 const $ = s => document.querySelector(s);
 const clamp = THREE.MathUtils.clamp;
@@ -30,12 +26,13 @@ const S = {
   lastLap: 0,
   bestLap: 0,
   gForce: 0,
+  boosting: false,
   sound: false,
   clock: 0,
 };
 
-let renderer, scene, camera, controls, composer, bloom;
-let frames, curve, curveLen, marks, trackGroup;
+let renderer, scene, camera, controls;
+let frames, curve, curveLen, marks, trackGroup, boosts = [];
 let hero = null, rivals = [];
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
@@ -56,10 +53,13 @@ function setStatus(pct, text) {
 function init() {
   const canvas = $('#scene');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // only the cars move, so half-rate shadow updates are invisible and halve
+  // the cost of re-rendering every caster
+  renderer.shadowMap.autoUpdate = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.83;
   // count a whole frame, not just the last composer pass
@@ -93,18 +93,21 @@ function init() {
   const circuit = buildCircuit();
   curve = circuit.curve;
   marks = circuit.marks;
+  boosts = circuit.zones.filter(z => z.type === 'boost');
   curveLen = curve.getLength();
   frames = computeFrames(curve, 2400, circuit.ups);
 
   setStatus(38, 'Moulding orange track…');
-  trackGroup = buildTrackMesh(frames);
+  trackGroup = buildTrackMesh(frames, circuit.zones);
   scene.add(trackGroup);
 
   // ── world ──
   setStatus(58, 'Raising the skyline…');
   scene.add(makeSky());
   scene.add(makeGround());
-  scene.add(makeCity(frames.points.filter((_, i) => i % 6 === 0), { count: 190 }));
+  const city = makeCity(frames.points.filter((_, i) => i % 6 === 0), { count: 190 });
+  scene.add(city);
+  scene.userData.city = city;
 
   // ── lights ──
   setStatus(74, 'Switching on the floodlights…');
@@ -115,7 +118,7 @@ function init() {
   key.castShadow = true;
   // The shadow map only needs to cover the circuit, not the whole city —
   // a tight frustum at 1536 is sharper AND cheaper than a loose one at 2048.
-  key.shadow.mapSize.set(1536, 1536);
+  key.shadow.mapSize.set(1024, 1024);
   const sc = key.shadow.camera;
   sc.left = -115; sc.right = 115; sc.top = 115; sc.bottom = -115;
   sc.near = 40; sc.far = 480;
@@ -137,20 +140,10 @@ function init() {
   spawnRivals();
 
   // ── post ──
-  // antialias:true on the renderer is dead weight once EffectComposer owns the
-  // frame — it renders into its own target. Give that target real MSAA instead,
-  // which is what was making every edge look like a staircase.
-  const dpr = renderer.getPixelRatio();
-  const msaa = new THREE.WebGLRenderTarget(
-    Math.max(1, Math.floor(innerWidth * dpr)),
-    Math.max(1, Math.floor(innerHeight * dpr)),
-    { samples: 4, type: THREE.HalfFloatType }
-  );
-  composer = new EffectComposer(renderer, msaa);
-  composer.addPass(new RenderPass(scene, camera));
-  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * 0.5, innerHeight * 0.5), 0.14, 0.7, 0.95);
-  composer.addPass(bloom);
-  composer.addPass(new OutputPass());
+  // No post-processing. A daylight scene gains almost nothing from bloom, and
+  // dropping the composer means the canvas gets the driver's own MSAA — which
+  // is cheaper than a half-float multisampled target plus three fullscreen
+  // passes, and was the single biggest cost in the frame.
 
   buildUI();
   addEventListener('resize', onResize);
@@ -258,6 +251,9 @@ function drive(dt) {
   let target = vmax * (1 - 0.42 * climb) * (1 + 0.55 * dive);
   target *= 1 - clamp(corner * 34 * (1.15 - spec.grip), 0, 0.42);
   target = Math.max(target, 11 * S.speedMul);
+
+  S.boosting = boosts.some(z => S.u >= z.u0 && S.u <= z.u1);
+  if (S.boosting) target *= 1.55;
 
   const rate = target > S.v ? 1.5 * spec.accel : 2.4;
   S.v += (target - S.v) * Math.min(1, dt * rate);
@@ -468,18 +464,15 @@ function swing(dTheta) {
  * simply settling one step lower.
  */
 const QUALITY = [
-  { ratio: 0.75, bloom: false, label: 'Performance' },
-  { ratio: 1.0, bloom: true, label: 'Balanced' },
-  { ratio: Math.min(devicePixelRatio, 1.5), bloom: true, label: 'High' },
+  { ratio: 0.7, label: 'Performance' },
+  { ratio: 0.9, label: 'Balanced' },
+  { ratio: Math.min(devicePixelRatio, 1.25), label: 'High' },
 ];
 let qLevel = 2, qAcc = 0, qFrames = 0, qStrikes = 0;
 
 function applyQuality() {
-  const q = QUALITY[qLevel];
-  renderer.setPixelRatio(q.ratio);
+  renderer.setPixelRatio(QUALITY[qLevel].ratio);
   renderer.setSize(innerWidth, innerHeight, false);
-  composer.setSize(innerWidth, innerHeight);
-  bloom.enabled = q.bloom;
 }
 
 function adaptQuality(dt) {
@@ -565,6 +558,7 @@ function updateSound() {
 
 /* ═══════════ HUD ═══════════ */
 let hudAcc = 0, frameCount = 0, fpsAcc = 0;
+const dialEl = $('#dial-fill');
 function updateHUD(dt) {
   hudAcc += dt; frameCount++; fpsAcc += dt;
 
@@ -573,6 +567,7 @@ function updateHUD(dt) {
   const pct = clamp(kmh / 420, 0, 1);
   $('#dial-fill').style.strokeDasharray = `${pct * 245} 327`;
   $('#g-fill').style.width = (S.gForce * 100).toFixed(0) + '%';
+  dialEl.classList.toggle('boost', S.boosting);
 
   if (hudAcc > 0.2) {
     hudAcc = 0;
@@ -595,6 +590,7 @@ function sectionName(u) {
 
 /* ═══════════ loop ═══════════ */
 let last = performance.now();
+let shadowTick = 0;
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -605,12 +601,14 @@ function tick(now) {
   }
   placeHero(S.playing ? dt : 0);
   updateCamera(dt);
+  updateCity(scene.userData.city, S.clock);
   updateSound();
   updateHUD(dt);
   adaptQuality(dt);
 
+  renderer.shadowMap.needsUpdate = (shadowTick++ & 1) === 0;
   renderer.info.reset();
-  composer.render();
+  renderer.render(scene, camera);
 }
 
 /** Any uncaught error would otherwise leave the loader frozen mid-bar. */
@@ -632,8 +630,6 @@ function onResize() {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
-  bloom.setSize(innerWidth * 0.5, innerHeight * 0.5);
   movePill();
 }
 
