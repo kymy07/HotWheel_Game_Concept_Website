@@ -13,10 +13,10 @@ export function makeSky() {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, toneMapped: false,
     uniforms: {
-      top: { value: new THREE.Color(0x2f8fe0) },
-      mid: { value: new THREE.Color(0x8fd0f5) },
-      bot: { value: new THREE.Color(0xfff2dc) },
-      glow: { value: new THREE.Color(0xffe9b0) },
+      top: { value: new THREE.Color(0x4fb3bf) },
+      mid: { value: new THREE.Color(0xa9dcd8) },
+      bot: { value: new THREE.Color(0xfdf5e4) },
+      glow: { value: new THREE.Color(0xffd98a) },
     },
     vertexShader: /* glsl */`
       varying vec3 vPos;
@@ -46,16 +46,16 @@ export function makeGround() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const x = c.getContext('2d');
-  x.fillStyle = '#b3d6bd';
+  x.fillStyle = '#ddd2ba';
   x.fillRect(0, 0, 256, 256);
   for (let i = 0; i < 2600; i++) {
-    x.fillStyle = `rgba(120,150,130,${Math.random() * 0.05})`;
+    x.fillStyle = `rgba(15,61,60,${Math.random() * 0.045})`;
     x.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
   }
-  x.strokeStyle = 'rgba(96,132,150,.26)';
+  x.strokeStyle = 'rgba(43,179,163,.30)';
   x.lineWidth = 4;
   x.strokeRect(0, 0, 256, 256);
-  x.strokeStyle = 'rgba(120,150,175,.11)';
+  x.strokeStyle = 'rgba(43,179,163,.14)';
   x.lineWidth = 1;
   x.beginPath(); x.moveTo(128, 0); x.lineTo(128, 256); x.moveTo(0, 128); x.lineTo(256, 128); x.stroke();
 
@@ -76,28 +76,34 @@ export function makeGround() {
 /* ── window sheets: dark glass on a white wall, tinted per instance ── */
 function windowTexture(seed) {
   const c = document.createElement('canvas');
-  c.width = 64; c.height = 128;
-  const x = c.getContext('2d');
-  x.fillStyle = '#ffffff';
-  x.fillRect(0, 0, 64, 128);
-  const cols = 6, rows = 16;
+  c.width = 256; c.height = 512;                 // 4x the old sheet: the windows
+  const x = c.getContext('2d');                  // were visibly blocky when
+  x.fillStyle = '#ffffff';                       // stretched up a tall tower
+  x.fillRect(0, 0, 256, 512);
+
+  const cols = 5, rows = 13;
+  const cw = 256 / cols, ch = 512 / rows;
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       if ((i * 7 + j * 13 + seed * 5) % 11 === 0) continue;   // a few blanks
-      const a = 0.32 + ((i + j + seed) % 4) * 0.07;
-      x.fillStyle = `rgba(44,68,100,${a})`;
-      x.fillRect(i * 10 + 3, j * 8 + 2, 6, 4.5);
+      const a = 0.3 + ((i + j + seed) % 3) * 0.06;
+      x.fillStyle = `rgba(28,62,66,${a})`;
+      const w = cw * 0.52, h = ch * 0.4;
+      roundRect(x, i * cw + (cw - w) / 2, j * ch + (ch - h) / 2, w, h, 4);
+      x.fill();
     }
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
   return t;
 }
 
 // cheerful toy-city palette
+// pulled from the reference artwork: deep teal, cyan, cream, yellow, coral
 const PALETTE = [
-  0xffb703, 0xfb8500, 0xff5d8f, 0x9b5de5, 0x2ec4f1,
-  0x2bb789, 0x8ac926, 0xff8fab, 0x4895ef, 0xf6c445,
+  0x2bb3a3, 0x4fd1c5, 0x1c5f5c, 0xffc93c, 0xff7a5c,
+  0xe4d7bd, 0x7cd6c8, 0xffb703, 0x3f8f8b, 0xffd98a,
 ];
 
 /* ── the skyline ── */
@@ -200,14 +206,14 @@ export function makeCity(trackPoints, opts = {}) {
 
   // ── billboards around the circuit ──
   const signs = [
-    { text: 'NITRO 9', c1: '#ff5c8a', c2: '#ffb03a' },
-    { text: 'VOLTEC', c1: '#3aa7ff', c2: '#7ce0d3' },
-    { text: 'APEXCO', c1: '#28c76f', c2: '#b6e94a' },
-    { text: 'HOTLAP', c1: '#ff7a1a', c2: '#ff4d6d' },
-    { text: 'TURBO ST', c1: '#a06bff', c2: '#ff6fd8' },
-    { text: 'DIE-CAST', c1: '#ffc93c', c2: '#ff8b3d' },
+    { text: 'NITRO 9', c1: '#ff7a5c', c2: '#ffc93c' },
+    { text: 'VOLTEC', c1: '#2bb3a3', c2: '#4fd1c5' },
+    { text: 'APEXCO', c1: '#0f3d3c', c2: '#2bb3a3' },
+    { text: 'HOTLAP', c1: '#ffc93c', c2: '#ff7a5c' },
+    { text: 'TURBO ST', c1: '#1c5f5c', c2: '#4fd1c5' },
+    { text: 'DIE-CAST', c1: '#4fd1c5', c2: '#ffc93c' },
   ];
-  const legMat = new THREE.MeshStandardMaterial({ color: 0xd6dee9, roughness: 0.7, metalness: 0.2 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0xdfd6c4, roughness: 0.7, metalness: 0.2 });
   const signGeo = new THREE.PlaneGeometry(30, 9);
 
   signs.forEach((s, i) => {

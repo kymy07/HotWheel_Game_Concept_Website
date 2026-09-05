@@ -9,6 +9,9 @@ import * as THREE from 'three';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
+/** smoothstep — zero rate of change at both ends, so joins stay crease-free */
+const ease = t => t * t * (3 - 2 * t);
+
 /* ---------------------------------------------------------
    PathBuilder — walks a virtual pen through the world.
    yaw 0 = heading +X. Positive turn angle = turn right (+Z).
@@ -85,17 +88,27 @@ export class PathBuilder {
   }
 
   /**
-   * Vertical loop-the-loop, leaning forward by `len` so it never self-touches.
-   * The car's up points at the loop centre, so it rolls upside down at the top.
+   * Vertical loop-the-loop. The car's up points at the loop centre, so it
+   * rolls upside down at the top.
+   *
+   * `side` drifts the loop sideways as it goes round, and it is what stops the
+   * climbing and descending halves from cutting through each other. Leaning the
+   * loop forward instead (`len`) cannot fix that: for branches at equal height
+   * the gap is 24·sin φ − len·(1 − φ/π), which crosses zero for every lean
+   * between 0 and 48, so a forward-leaning loop always intersects itself
+   * somewhere. A sideways drift adds a constant separation that never cancels.
    */
-  loop(radius, len = 0) {
-    const f = this.forward, s = this.pos.clone();
+  loop(radius, len = 0, side = 0) {
+    const f = this.forward, r = this.right, s = this.pos.clone();
     const center = s.clone().addScaledVector(UP, radius);
     const n = 108;
     for (let i = 1; i <= n; i++) {
       const t = i / n, phi = Math.PI * 2 * t;
+      // eased, not linear: a linear drift gives the entry tangent a sideways
+      // component the approach straight does not have, i.e. a visible kink
       const p = center.clone()
         .addScaledVector(f, radius * Math.sin(phi) + len * t)
+        .addScaledVector(r, side * ease(t))
         .addScaledVector(UP, -radius * Math.cos(phi));
       const up = UP.clone().multiplyScalar(Math.cos(phi)).addScaledVector(f, -Math.sin(phi));
       this._push(p, up);
@@ -104,7 +117,7 @@ export class PathBuilder {
   }
 
   /** Corkscrew: helix wrapped around the direction of travel. */
-  corkscrew(len, radius, turns = 1) {
+  corkscrew(len, radius, turns = 1, side = 0) {
     const f = this.forward, r = this.right, s = this.pos.clone();
     const n = Math.max(60, Math.round(len / 0.8));
     for (let i = 1; i <= n; i++) {
@@ -113,7 +126,7 @@ export class PathBuilder {
       const rr = radius * (0.25 + 0.75 * Math.sin(Math.PI * t));
       const p = s.clone()
         .addScaledVector(f, len * t)
-        .addScaledVector(r, rr * Math.sin(phi))
+        .addScaledVector(r, rr * Math.sin(phi) + side * ease(t))
         .addScaledVector(UP, rr * (1 - Math.cos(phi)));
       // up points back at the helix axis
       const up = UP.clone().multiplyScalar(Math.cos(phi)).addScaledVector(r, -Math.sin(phi));
@@ -259,7 +272,7 @@ export function buildCircuit() {
 
   // ── side A (+X) : start/finish straight → giant vertical loop ──
   pb.mark('Start / Finish').straight(30);
-  pb.mark('The Loop').loop(12, 16).straight(48);
+  pb.mark('The Loop').loop(12, 0, 11).straight(48);
 
   pb.mark('Turn 1 — Skyline').turn(90, 26, 6);
 
@@ -269,9 +282,11 @@ export function buildCircuit() {
   pb.mark('Turn 2 — Downtown').turn(90, 26, -6);
 
   // ── side C (−X) : corkscrew ──
-  pb.straight(18).mark('Corkscrew').corkscrew(50, 9, 1).straight(26);
+  // the corkscrew runs the other way round the circuit, so an identical
+  // sideways drift here cancels the loop's and the lap still closes
+  pb.straight(18).mark('Corkscrew').corkscrew(50, 9, 1, 11).straight(10);
 
-  pb.mark('Turn 3 — Neon Bend').turn(90, 26);
+  pb.mark('Turn 3 — The Sweeper').turn(90, 26);
 
   // ── side D (−Z) : sweeping run home ──
   pb.mark('Back Straight').hill(70, -2.5);
@@ -353,7 +368,7 @@ export function buildTrackMesh(frames) {
   })));
 
   // support pillars -----------------------------------------
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0xb7c3d4, roughness: 0.6, metalness: 0.25 });
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0xe4dccb, roughness: 0.62, metalness: 0.15 });
   const { points, normals, count } = frames;
   const pillarGeo = new THREE.CylinderGeometry(0.7, 1.15, 1, 10);
   const spots = [];
@@ -393,7 +408,7 @@ function dashTexture() {
 function startGate(frames, HW) {
   const g = new THREE.Group();
   const P = frames.points[0], B = frames.binormals[0], T = frames.tangents[0];
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x5b6b82, roughness: 0.55, metalness: 0.45 });
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x1c5f5c, roughness: 0.5, metalness: 0.35 });
   const postGeo = new THREE.BoxGeometry(0.7, 9, 0.7);
 
   for (const s of [-1, 1]) {
@@ -424,7 +439,7 @@ function bannerTexture() {
   c.width = 1024; c.height = 128;
   const x = c.getContext('2d');
   const grd = x.createLinearGradient(0, 0, 1024, 0);
-  grd.addColorStop(0, '#ffb03a'); grd.addColorStop(1, '#ff5c8a');
+  grd.addColorStop(0, '#ffc93c'); grd.addColorStop(1, '#ff7a5c');
   x.fillStyle = grd; x.fillRect(0, 0, 1024, 128);
   x.fillStyle = '#fff';
   x.font = '900 74px Orbitron, Arial Black, sans-serif';

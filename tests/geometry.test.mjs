@@ -77,6 +77,26 @@ test('the loop and corkscrew do invert the car, the rest does not', () => {
   assert.ok(inverted < 0.2, `${(inverted * 100).toFixed(1)}% inverted — the whole track is rolling`);
 });
 
+test('the ribbon never passes through itself', () => {
+  // The loop used to lean forward, which made its climbing and descending
+  // halves slice through each other partway up. A sideways drift replaced it.
+  const F = computeFrames(curve, 1200, ups);
+  const step = curve.getLength() / F.count;
+  const WIDTH = 7.8;
+  let worst = Infinity, at = [-1, -1];
+
+  for (let i = 0; i < F.count; i++) {
+    for (let j = i + 1; j < F.count; j++) {
+      const along = Math.min(j - i, F.count - (j - i)) * step;
+      if (along < 26) continue;            // neighbours along the ribbon
+      const d = F.points[i].distanceTo(F.points[j]);
+      if (d < worst) { worst = d; at = [i / F.count, j / F.count]; }
+    }
+  }
+  assert.ok(worst > WIDTH,
+    `track overlaps itself: ${worst.toFixed(2)} apart at u=${at[0].toFixed(3)} and u=${at[1].toFixed(3)}`);
+});
+
 test('section markers are ordered and inside the lap', () => {
   assert.ok(marks.length >= 6, 'expected the named sections');
   let prev = -1;

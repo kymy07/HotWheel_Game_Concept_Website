@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>HOTLAP — Track Experience</title>
-<meta name="theme-color" content="#dceafb" />
+<meta name="theme-color" content="#f7f4ec" />
 <meta name="description" content="An interactive Hot Wheels style track experience." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏎️</text></svg>" />
 <script type="importmap">
@@ -27,15 +27,34 @@
 
 <!-- ══════════ LOADER ══════════ -->
 <div id="loader">
+  <span class="blob blob-a"></span>
+  <span class="blob blob-b"></span>
+  <span class="bubble b1"></span>
+  <span class="bubble b2"></span>
+  <span class="bubble b3"></span>
+  <svg class="gear g1" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 4-2.1-.5a7 7 0 0 0-.7-1.7l1.2-1.8-1.4-1.4-1.8 1.2a7 7 0 0 0-1.7-.7L14 4h-2l-.5 2.1a7 7 0 0 0-1.7.7L8 5.6 6.6 7l1.2 1.8a7 7 0 0 0-.7 1.7L5 11v2l2.1.5c.2.6.4 1.2.7 1.7L6.6 17 8 18.4l1.8-1.2c.5.3 1.1.5 1.7.7L12 20h2l.5-2.1c.6-.2 1.2-.4 1.7-.7l1.8 1.2 1.4-1.4-1.2-1.8c.3-.5.5-1.1.7-1.7L21 13Z" fill="currentColor"/></svg>
+  <svg class="gear g2" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 4-2.1-.5a7 7 0 0 0-.7-1.7l1.2-1.8-1.4-1.4-1.8 1.2a7 7 0 0 0-1.7-.7L14 4h-2l-.5 2.1a7 7 0 0 0-1.7.7L8 5.6 6.6 7l1.2 1.8a7 7 0 0 0-.7 1.7L5 11v2l2.1.5c.2.6.4 1.2.7 1.7L6.6 17 8 18.4l1.8-1.2c.5.3 1.1.5 1.7.7L12 20h2l.5-2.1c.6-.2 1.2-.4 1.7-.7l1.8 1.2 1.4-1.4-1.2-1.8c.3-.5.5-1.1.7-1.7L21 13Z" fill="currentColor"/></svg>
+
   <div class="loader-inner">
-    <div class="loader-logo">
-      <svg viewBox="0 0 64 64" class="mark" aria-hidden="true"><defs><linearGradient id="lg-loader" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff9d2e"/><stop offset="55%" stop-color="#ff5a1f"/><stop offset="100%" stop-color="#ff2d55"/></linearGradient></defs><path d="M32 4C18 12 12 22 12 32a20 20 0 0 0 40 0c0-6-3-11-7-15 1 6-1 10-4 12 1-9-3-18-9-25Z" fill="url(#lg-loader)"/><circle cx="32" cy="36" r="8" fill="#0b0d12" opacity=".55"/><circle cx="32" cy="36" r="3.4" fill="#fff" opacity=".9"/></svg>
-      <div class="loader-word">HOT<span>LAP</span></div>
+    <svg viewBox="0 0 64 64" class="mark" aria-hidden="true">
+      <defs><linearGradient id="lg-loader" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ffd23f"/><stop offset="60%" stop-color="#ff8a3d"/>
+        <stop offset="100%" stop-color="#ff5c5c"/></linearGradient></defs>
+      <path d="M32 4C18 12 12 22 12 32a20 20 0 0 0 40 0c0-6-3-11-7-15 1 6-1 10-4 12 1-9-3-18-9-25Z" fill="url(#lg-loader)"/>
+      <circle cx="32" cy="36" r="8" fill="#0f3d3c" opacity=".6"/>
+      <circle cx="32" cy="36" r="3.4" fill="#fff" opacity=".95"/>
+    </svg>
+
+    <div class="loader-word">
+      <span class="script">Hot</span><span class="solid">LAP</span>
     </div>
+    <p class="loader-tag">The Creative Circuit</p>
+
     <div class="loader-bar"><i id="loader-fill"></i></div>
     <div class="loader-status" id="loader-status">Building track geometry…</div>
-    <button id="enter-btn" class="enter-btn" disabled>
-      <span>ENTER THE TRACK</span>
+
+    <button id="enter-btn" class="pill pill-dark enter-btn" disabled>
+      <span>Enter the Track</span>
       <svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </div>
@@ -44,9 +63,16 @@
 <!-- ══════════ HEADER ══════════ -->
 <header class="glass header" id="header">
   <div class="brand">
-    <svg viewBox="0 0 64 64" class="mark" aria-hidden="true"><defs><linearGradient id="lg-header" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff9d2e"/><stop offset="55%" stop-color="#ff5a1f"/><stop offset="100%" stop-color="#ff2d55"/></linearGradient></defs><path d="M32 4C18 12 12 22 12 32a20 20 0 0 0 40 0c0-6-3-11-7-15 1 6-1 10-4 12 1-9-3-18-9-25Z" fill="url(#lg-header)"/><circle cx="32" cy="36" r="8" fill="#0b0d12" opacity=".55"/><circle cx="32" cy="36" r="3.4" fill="#fff" opacity=".9"/></svg>
+    <svg viewBox="0 0 64 64" class="mark" aria-hidden="true">
+      <defs><linearGradient id="lg-header" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ffd23f"/><stop offset="60%" stop-color="#ff8a3d"/>
+        <stop offset="100%" stop-color="#ff5c5c"/></linearGradient></defs>
+      <path d="M32 4C18 12 12 22 12 32a20 20 0 0 0 40 0c0-6-3-11-7-15 1 6-1 10-4 12 1-9-3-18-9-25Z" fill="url(#lg-header)"/>
+      <circle cx="32" cy="36" r="8" fill="#0f3d3c" opacity=".6"/>
+      <circle cx="32" cy="36" r="3.4" fill="#fff" opacity=".95"/>
+    </svg>
     <div class="brand-text">
-      <div class="brand-name">HOT<span>LAP</span></div>
+      <div class="brand-name"><span class="script">Hot</span><span class="solid">LAP</span></div>
       <div class="brand-sub">Track Experience</div>
     </div>
   </div>
@@ -59,9 +85,9 @@
 
   <div class="header-right">
     <div class="logo-strip" title="Partners">
-      <span class="chip">⌁ VOLTEC</span>
-      <span class="chip">◆ APEXCO</span>
-      <span class="chip">✦ NITRO9</span>
+      <span class="chip">Voltec</span>
+      <span class="chip">Apexco</span>
+      <span class="chip">Nitro9</span>
     </div>
     <button class="icon-btn" id="sound-btn" title="Engine sound">
       <svg viewBox="0 0 24 24" class="i-off"><path d="M11 5 6 9H3v6h3l5 4V5Z" fill="currentColor"/><path d="m17 9 4 6M21 9l-4 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -73,7 +99,7 @@
   </div>
 </header>
 
-<!-- ══════════ GARAGE PANEL (left) ══════════ -->
+<!-- ══════════ GARAGE PANEL ══════════ -->
 <aside class="glass panel garage" id="garage">
   <div class="panel-head">
     <h2>Garage</h2>
@@ -87,8 +113,11 @@
   </div>
 </aside>
 
-<!-- ══════════ TELEMETRY (right) ══════════ -->
+<!-- ══════════ TELEMETRY ══════════ -->
 <aside class="glass panel telemetry" id="stats">
+  <div class="panel-head">
+    <h2>Telemetry</h2>
+  </div>
   <div class="speedo">
     <svg viewBox="0 0 120 120" class="dial">
       <circle cx="60" cy="60" r="52" class="dial-track"/>
@@ -113,11 +142,11 @@
 <!-- ══════════ FOOTER DOCK ══════════ -->
 <footer class="glass footer" id="track">
   <div class="dock-group">
-    <button class="dock-btn primary" id="follow-btn">
+    <button class="pill pill-dark" id="follow-btn">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span>Follow Car</span>
     </button>
-    <button class="dock-btn" id="play-btn">
+    <button class="pill pill-plain" id="play-btn">
       <svg viewBox="0 0 24 24" class="i-pause"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg>
       <svg viewBox="0 0 24 24" class="i-play"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>
       <span class="lbl">Pause</span>
@@ -152,7 +181,6 @@
 </footer>
 
 <div class="toast" id="toast"></div>
-
 
 <script type="module" src="js/app.js"></script>
 </body>

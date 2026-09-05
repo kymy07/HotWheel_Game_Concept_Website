@@ -61,15 +61,15 @@ function init() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.88;
+  renderer.toneMappingExposure = 0.83;
   // count a whole frame, not just the last composer pass
   renderer.info.autoReset = false;
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xa9cdf0, 0.00055);
+  scene.fog = new THREE.FogExp2(0xc9e4dc, 0.00055);
 
   camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.4, 2000);
-  camera.position.set(-120, 90, -150);
+  camera.position.set(198, 132, 0);
 
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
@@ -108,7 +108,7 @@ function init() {
 
   // ── lights ──
   setStatus(74, 'Switching on the floodlights…');
-  scene.add(new THREE.HemisphereLight(0xbcdcff, 0xd9cfae, 0.55));
+  scene.add(new THREE.HemisphereLight(0xcfeae4, 0xe6dcc4, 0.6));
 
   const key = new THREE.DirectionalLight(0xfff1d2, 2.3);
   key.position.set(-150, 190, -160);
@@ -119,11 +119,11 @@ function init() {
   const sc = key.shadow.camera;
   sc.left = -115; sc.right = 115; sc.top = 115; sc.bottom = -115;
   sc.near = 40; sc.far = 480;
-  key.shadow.bias = -0.0007;
-  key.shadow.normalBias = 0.5;
+  key.shadow.bias = -0.0002;
+  key.shadow.normalBias = 1.1;   // curved orange tube was speckling with acne
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0xa8ccff, 0.35);
+  const fill = new THREE.DirectionalLight(0x8fd8ce, 0.35);
   fill.position.set(170, 90, 150);
   scene.add(fill);
 
@@ -137,7 +137,16 @@ function init() {
   spawnRivals();
 
   // ── post ──
-  composer = new EffectComposer(renderer);
+  // antialias:true on the renderer is dead weight once EffectComposer owns the
+  // frame — it renders into its own target. Give that target real MSAA instead,
+  // which is what was making every edge look like a staircase.
+  const dpr = renderer.getPixelRatio();
+  const msaa = new THREE.WebGLRenderTarget(
+    Math.max(1, Math.floor(innerWidth * dpr)),
+    Math.max(1, Math.floor(innerHeight * dpr)),
+    { samples: 4, type: THREE.HalfFloatType }
+  );
+  composer = new EffectComposer(renderer, msaa);
   composer.addPass(new RenderPass(scene, camera));
   bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * 0.5, innerHeight * 0.5), 0.14, 0.7, 0.95);
   composer.addPass(bloom);
@@ -317,10 +326,12 @@ function updateCamera(dt) {
 
   } else { // cinematic
     const a = S.clock * 0.055;
-    const r = 170 + Math.sin(S.clock * 0.09) * 30;
-    camPos.set(Math.cos(a) * r, 100 + Math.sin(S.clock * 0.13) * 18, Math.sin(a) * r);
+    // far enough back to frame the whole 146-unit circuit, high enough that
+    // the tower ring at r=100 stays below the sight line
+    const r = 198 + Math.sin(S.clock * 0.09) * 26;
+    camPos.set(Math.cos(a) * r, 132 + Math.sin(S.clock * 0.13) * 16, Math.sin(a) * r);
     camLook.set(0, 8, 0).lerp(car, 0.4);
-    damp = 0.02;
+    damp = 0.055;
     camera.up.lerp(THREE.Object3D.DEFAULT_UP, 0.05).normalize();
   }
 
@@ -499,8 +510,6 @@ function selectCar(i) {
   spawnHero(i);
   document.querySelectorAll('.car-card').forEach((c, n) => c.classList.toggle('is-active', n === i));
   $('#car-index').textContent = `${i + 1} / ${CARS.length}`;
-  const hex = '#' + CARS[i].color.toString(16).padStart(6, '0');
-  document.documentElement.style.setProperty('--hot', hex);
   toast(`${CARS[i].name} — ${CARS[i].klass}`);
   placeHero(0);
 }

@@ -2,8 +2,9 @@
 
 # HOTLAP — Hot Wheels Game Concept
 
-**Interactive 3D track experience · three.js · glassmorphism UI**
+**Interactive 3D track experience · three.js · flat-illustration UI**
 A die-cast orange circuit with a vertical loop, corkscrew and jump ramp, running through a bright toy city.
+Deep teal ink, cream surfaces, script-and-caps typography.
 
 [![Live Site](https://img.shields.io/badge/Live-kymy07.github.io%2FHotWheel__Game__Concept__Website-e07a5f?style=for-the-badge)](https://kymy07.github.io/HotWheel_Game_Concept_Website/)
 [![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Actions-2d3748?style=for-the-badge&logo=github)](../../actions)
@@ -39,9 +40,10 @@ billboards are all built at runtime from geometry primitives, so the whole site 
 | 🚗 **Five cars** | Blaze GT, Apex F1, Volt Hyper, Titan 4×4, Retro '68 — each modelled from code with its own silhouette, and stats that actually feed the driving model |
 | 🎥 **Four cameras** | Cinematic fly-around, chase cam that trails *along the curve*, hood cam, and free orbit — grab the scene at any time to look around |
 | 🏙️ **Toy city** | 190 candy-coloured towers, double-sided billboards, drifting clouds and a bright gradient sky — all instanced into 5 draw calls |
-| 🪟 **Glass interface** | `backdrop-filter` blur and saturation, hairline borders, inner highlights — the accent colour follows the selected car |
+| 🎨 **Flat-illustration UI** | Deep teal ink on frosted cream cards, one bright yellow accent, pill buttons — Dancing Script paired with heavy Poppins caps |
 | 📊 **Live telemetry** | Speedometer, lap counter, lap and best-lap times, current track section, G-force meter |
 | 🔊 **Synth engine note** | Web Audio oscillators pitched to the car's speed, off by default |
+| ✨ **4× MSAA** | The composer renders into a multisampled target, so edges stay clean — `antialias: true` on the renderer does nothing once post-processing is on |
 | ⚡ **Adaptive quality** | Frame rate is sampled continuously; resolution and bloom step down automatically if the GPU falls behind |
 | 📱 **Responsive** | Panels reflow down to mobile; every animation stops under `prefers-reduced-motion` |
 
@@ -55,12 +57,12 @@ reports as the car passes through them.
 | Section | What happens |
 |---|---|
 | **Start / Finish** | Flat straight under the gantry |
-| **The Loop** | Full vertical loop-the-loop, leaning forward so it never self-touches |
+| **The Loop** | Full vertical loop-the-loop; it drifts sideways as it goes round so the climb and the descent pass beside each other |
 | **Turn 1 — Skyline** | Banked right-hander climbing 6 units |
 | **Big Air** | Elevated jump ramp over the rooftops |
 | **Turn 2 — Downtown** | Banked descent back to street level |
 | **Corkscrew** | 360° barrel roll along the back section |
-| **Turn 3 — Neon Bend** | Banked sweeper past the billboards |
+| **Turn 3 — The Sweeper** | Banked sweeper past the billboards |
 | **Back Straight** | Dipped run home |
 | **Turn 4 — Final** | Last corner onto the start line |
 
@@ -100,6 +102,7 @@ carry more speed through the corners.
 ## Tech Stack
 
 **Frontend** — HTML5 · CSS3 (custom properties, grid, flexbox, `backdrop-filter`) · vanilla JavaScript (ES modules)
+**Type** — Poppins (300–800) · Dancing Script (600–700)
 **Graphics** — three.js r160 · WebGL 2 · custom GLSL skydome · instanced rendering · UnrealBloom post-processing
 **Geometry** — CatmullRom curves · custom profile extrusion · procedural canvas textures
 **Audio** — Web Audio API oscillators
@@ -159,9 +162,10 @@ npm install
 npm test
 ```
 
-11 checks: circuit closure, finite coordinates, no duplicate control points, ground
+12 checks: circuit closure, finite coordinates, no duplicate control points, ground
 clearance, frame orthonormality, seam continuity, roll smoothness, inversion ratio,
-section-marker ordering, and that every car builds with its wheels exactly on the road.
+self-intersection clearance, section-marker ordering, and that every car builds with its
+wheels exactly on the road.
 
 ---
 
@@ -241,9 +245,9 @@ shortcut and the accent colour all pick it up automatically.
 <details>
 <summary><b>Tuning the look</b></summary>
 
-- **Glass and colours** — every value is a CSS custom property in the `:root` block at
-  the top of `css/style.css`. `--blur`, `--glass`, `--stroke`, `--hot`, `--cool`.
-  `--hot` is overwritten at runtime to match the selected car.
+- **Colours and type** — every value is a CSS custom property in the `:root` block at
+  the top of `css/style.css`: `--ink` (deep teal), `--cream`, `--teal`, `--yellow`,
+  `--coral`, plus `--font` and `--script`. Change them there and the whole UI follows.
 - **Track colours** — `buildTrackMesh()` in `js/track.js`: `bedMat` is the orange deck,
   `railMat` the side rails, `glowMat` the glowing edge strips.
 - **Daylight** — the hemisphere, key and fill lights in `init()` in `js/app.js`, plus
@@ -278,6 +282,12 @@ So the up vector is recorded *analytically* while each primitive is drawn:
 Frames are sampled by **arc length**, so `u` is mapped back to the control-point index
 through the curve's own length table. The seam now closes to **0.47°**, and only the loop
 and corkscrew invert the car.
+
+The loop needs a third trick. Leaning it forward does not stop the climbing and
+descending halves from cutting through each other — for the two branches at equal height
+the gap is `24·sin φ − len·(1 − φ/π)`, which crosses zero for every lean between 0 and 48.
+So the loop drifts **sideways** instead, eased in and out so the entry tangent stays
+straight; the two halves now pass 10.9 units apart, and a test asserts it.
 
 Two related details: jump ramps use a **raised cosine** rather than a half sine, because
 a half sine leaves the ground at a 43° crease (worst per-sample roll dropped from 11.7°
