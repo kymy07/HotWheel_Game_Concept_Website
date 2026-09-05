@@ -311,8 +311,7 @@ export function buildTrackMesh(frames) {
     [-HW, 0], [HW, 0], [HW, -DECK], [-HW, -DECK],
   ], 160);
   const bedMat = new THREE.MeshStandardMaterial({
-    color: 0xff6a14, roughness: 0.52, metalness: 0.06,
-    emissive: 0x1a0700, emissiveIntensity: 0.35,
+    color: 0xff7d22, roughness: 0.46, metalness: 0.04,
   });
   const bed = new THREE.Mesh(bedGeo, bedMat);
   bed.castShadow = true; bed.receiveShadow = true;
@@ -320,8 +319,7 @@ export function buildTrackMesh(frames) {
 
   // rails ---------------------------------------------------
   const railMat = new THREE.MeshStandardMaterial({
-    color: 0xff8a2b, roughness: 0.38, metalness: 0.12,
-    emissive: 0x2a0c00, emissiveIntensity: 0.55,
+    color: 0xffa63c, roughness: 0.34, metalness: 0.1,
   });
   for (const s of [-1, 1]) {
     const x0 = s * HW, x1 = s * (HW - RAIL_W);
@@ -335,7 +333,7 @@ export function buildTrackMesh(frames) {
   }
 
   // neon glow strip on top of each rail ---------------------
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff9636 });
+  const glowMat = new THREE.MeshStandardMaterial({ color: 0xffe08a, roughness: 0.35, metalness: 0.05 });
   for (const s of [-1, 1]) {
     const c = s * (HW - RAIL_W / 2);
     const geo = extrude(frames, [
@@ -351,11 +349,11 @@ export function buildTrackMesh(frames) {
     [-0.22, 0.035], [0.22, 0.035], [0.22, 0.0], [-0.22, 0.0],
   ], 300);
   group.add(new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({
-    map: lineTex, transparent: true, opacity: 0.34, depthWrite: false, color: 0xdfe6f2,
+    map: lineTex, transparent: true, opacity: 0.6, depthWrite: false, color: 0xffffff,
   })));
 
   // support pillars -----------------------------------------
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x3b4354, roughness: 0.7, metalness: 0.4 });
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0xb7c3d4, roughness: 0.6, metalness: 0.25 });
   const { points, normals, count } = frames;
   const pillarGeo = new THREE.CylinderGeometry(0.7, 1.15, 1, 10);
   const spots = [];
@@ -395,7 +393,7 @@ function dashTexture() {
 function startGate(frames, HW) {
   const g = new THREE.Group();
   const P = frames.points[0], B = frames.binormals[0], T = frames.tangents[0];
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x1b2029, roughness: 0.6, metalness: 0.5 });
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x5b6b82, roughness: 0.55, metalness: 0.45 });
   const postGeo = new THREE.BoxGeometry(0.7, 9, 0.7);
 
   for (const s of [-1, 1]) {
@@ -426,7 +424,7 @@ function bannerTexture() {
   c.width = 1024; c.height = 128;
   const x = c.getContext('2d');
   const grd = x.createLinearGradient(0, 0, 1024, 0);
-  grd.addColorStop(0, '#ff6a1a'); grd.addColorStop(1, '#ff2d55');
+  grd.addColorStop(0, '#ffb03a'); grd.addColorStop(1, '#ff5c8a');
   x.fillStyle = grd; x.fillRect(0, 0, 1024, 128);
   x.fillStyle = '#fff';
   x.font = '900 74px Orbitron, Arial Black, sans-serif';

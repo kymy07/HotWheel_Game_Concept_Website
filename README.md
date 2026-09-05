@@ -3,7 +3,7 @@
 # HOTLAP — Hot Wheels Game Concept
 
 **Interactive 3D track experience · three.js · glassmorphism UI**
-A die-cast orange circuit with a vertical loop, corkscrew and jump ramp, running through a neon city at night.
+A die-cast orange circuit with a vertical loop, corkscrew and jump ramp, running through a bright toy city.
 
 [![Live Site](https://img.shields.io/badge/Live-kymy07.github.io%2FHotWheel__Game__Concept__Website-e07a5f?style=for-the-badge)](https://kymy07.github.io/HotWheel_Game_Concept_Website/)
 [![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Actions-2d3748?style=for-the-badge&logo=github)](../../actions)
@@ -24,7 +24,7 @@ circuit plays on a loop in the background like an ambient animation, and the int
 floats above it in translucent glass panels — header, garage, telemetry, footer dock.
 
 Everything on screen is **generated in code**. There are no 3D model files, no textures
-on disk and no video. The circuit, the five cars, the city skyline and the neon
+on disk and no video. The circuit, the five cars, the city skyline and the
 billboards are all built at runtime from geometry primitives, so the whole site is under
 100 KB excluding the three.js runtime pulled from CDN.
 
@@ -37,11 +37,12 @@ billboards are all built at runtime from geometry primitives, so the whole site 
 | 🛣️ **Procedural circuit** | Straights, banked turns, a jump ramp, a leaning vertical loop and a corkscrew — assembled by a `PathBuilder` that closes exactly on itself |
 | 🔄 **Loop & corkscrew** | The car rolls fully upside down through the loop and barrel-rolls through the corkscrew, driven by analytic up vectors rather than parallel transport |
 | 🚗 **Five cars** | Blaze GT, Apex F1, Volt Hyper, Titan 4×4, Retro '68 — each modelled from code with its own silhouette, and stats that actually feed the driving model |
-| 🎥 **Four cameras** | Cinematic fly-around, chase cam that trails *along the curve*, hood cam, and free orbit — with damped transitions between them |
-| 🌃 **Neon city** | 190 towers with lit-window textures, flickering billboards, blinking roof beacons and a gradient dusk skydome |
+| 🎥 **Four cameras** | Cinematic fly-around, chase cam that trails *along the curve*, hood cam, and free orbit — grab the scene at any time to look around |
+| 🏙️ **Toy city** | 190 candy-coloured towers, double-sided billboards, drifting clouds and a bright gradient sky — all instanced into 5 draw calls |
 | 🪟 **Glass interface** | `backdrop-filter` blur and saturation, hairline borders, inner highlights — the accent colour follows the selected car |
 | 📊 **Live telemetry** | Speedometer, lap counter, lap and best-lap times, current track section, G-force meter |
 | 🔊 **Synth engine note** | Web Audio oscillators pitched to the car's speed, off by default |
+| ⚡ **Adaptive quality** | Frame rate is sampled continuously; resolution and bloom step down automatically if the GPU falls behind |
 | 📱 **Responsive** | Panels reflow down to mobile; every animation stops under `prefers-reduced-motion` |
 
 ---
@@ -90,7 +91,8 @@ carry more speed through the corners.
 | **Garage panel** / `C` | Switch between the five cars |
 | **Speed slider** | 0.35× – 2.0× simulation speed |
 | `Space` | Pause / resume |
-| Drag + scroll | Rotate and zoom, in Free camera |
+| Drag + scroll | Look around the track from any camera — grabbing the scene hands control over |
+| `←` `→` or `A` `D` | Swing the camera around the circuit |
 | 🔊 / ⛶ | Engine sound · fullscreen |
 
 ---
@@ -98,7 +100,7 @@ carry more speed through the corners.
 ## Tech Stack
 
 **Frontend** — HTML5 · CSS3 (custom properties, grid, flexbox, `backdrop-filter`) · vanilla JavaScript (ES modules)
-**Graphics** — three.js r160 · WebGL 2 · custom GLSL skydome · UnrealBloom post-processing
+**Graphics** — three.js r160 · WebGL 2 · custom GLSL skydome · instanced rendering · UnrealBloom post-processing
 **Geometry** — CatmullRom curves · custom profile extrusion · procedural canvas textures
 **Audio** — Web Audio API oscillators
 **Fonts** — Inter · Orbitron (Google Fonts)
@@ -121,7 +123,7 @@ HotWheel_Game_Concept_Website/
 │   ├── app.js                 # scene, driving model, cameras, UI, audio
 │   ├── track.js               # PathBuilder → closed circuit, frames, track mesh
 │   ├── cars.js                # five procedural car models
-│   └── city.js                # skydome, ground, skyline, neon billboards
+│   └── city.js                # skydome, ground, instanced skyline, billboards
 ├── tests/
 │   └── geometry.test.mjs      # headless checks on the generated geometry
 ├── docs/screenshots/          # images used in this README
@@ -244,11 +246,13 @@ shortcut and the accent colour all pick it up automatically.
   `--hot` is overwritten at runtime to match the selected car.
 - **Track colours** — `buildTrackMesh()` in `js/track.js`: `bedMat` is the orange deck,
   `railMat` the side rails, `glowMat` the glowing edge strips.
-- **Night lighting** — the hemisphere, key and rim lights in `init()` in `js/app.js`,
-  plus `renderer.toneMappingExposure`.
+- **Daylight** — the hemisphere, key and fill lights in `init()` in `js/app.js`, plus
+  `renderer.toneMappingExposure` and the `FogExp2` density.
+- **City colours** — the `PALETTE` array at the top of `js/city.js` tints every tower.
 - **Bloom** — the `UnrealBloomPass` arguments are strength, radius and threshold. Raise
   the threshold if bright surfaces start blowing out.
-- **City density** — `makeCity(points, { count, spread })` in `js/app.js`.
+- **City density** — `makeCity(points, { count, inner, spread })` in `js/app.js`.
+  `inner` keeps the skyline clear of the cinematic camera's orbit.
 
 </details>
 

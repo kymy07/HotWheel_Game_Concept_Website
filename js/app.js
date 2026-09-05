@@ -11,7 +11,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { buildCircuit, computeFrames, buildTrackMesh } from './track.js';
 import { CARS, makeCar } from './cars.js';
-import { makeSky, makeGround, makeCity, animateCity } from './city.js';
+import { makeSky, makeGround, makeCity } from './city.js';
 
 const $ = s => document.querySelector(s);
 const clamp = THREE.MathUtils.clamp;
@@ -37,7 +37,6 @@ const S = {
 let renderer, scene, camera, controls, composer, bloom;
 let frames, curve, curveLen, marks, trackGroup;
 let hero = null, rivals = [];
-let heroLight;
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
 const lookNow = new THREE.Vector3();
@@ -57,15 +56,17 @@ function setStatus(pct, text) {
 function init() {
   const canvas = $('#scene');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.85));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.94;
+  renderer.toneMappingExposure = 0.88;
+  // count a whole frame, not just the last composer pass
+  renderer.info.autoReset = false;
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0a0f1c, 0.0022);
+  scene.fog = new THREE.FogExp2(0xa9cdf0, 0.00055);
 
   camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.4, 2000);
   camera.position.set(-120, 90, -150);
@@ -75,8 +76,16 @@ function init() {
   controls.dampingFactor = 0.07;
   controls.maxPolarAngle = Math.PI * 0.495;
   controls.minDistance = 12;
-  controls.maxDistance = 460;
+  controls.maxDistance = 520;
+  controls.screenSpacePanning = false;
   controls.enabled = false;
+
+  // Grabbing the scene should just work, whatever camera you were in.
+  // The listener is capturing so it flips `enabled` on before OrbitControls'
+  // own pointerdown handler runs — otherwise the first drag gets swallowed.
+  const grab = () => { if (S.cam !== 'orbit') setCam('orbit'); };
+  canvas.addEventListener('pointerdown', grab, true);
+  canvas.addEventListener('wheel', grab, { capture: true, passive: true });
 
   setStatus(12, 'Laying out the circuit…');
 
@@ -95,31 +104,28 @@ function init() {
   setStatus(58, 'Raising the skyline…');
   scene.add(makeSky());
   scene.add(makeGround());
-  const city = makeCity(frames.points.filter((_, i) => i % 6 === 0), { count: 190 });
-  scene.add(city);
-  scene.userData.city = city;
+  scene.add(makeCity(frames.points.filter((_, i) => i % 6 === 0), { count: 190 }));
 
   // ── lights ──
   setStatus(74, 'Switching on the floodlights…');
-  scene.add(new THREE.HemisphereLight(0x8aa2e0, 0x241a2e, 0.5));
+  scene.add(new THREE.HemisphereLight(0xbcdcff, 0xd9cfae, 0.55));
 
-  const key = new THREE.DirectionalLight(0xffd9b0, 1.45);
-  key.position.set(-140, 170, -190);
+  const key = new THREE.DirectionalLight(0xfff1d2, 2.3);
+  key.position.set(-150, 190, -160);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  // The shadow map only needs to cover the circuit, not the whole city —
+  // a tight frustum at 1536 is sharper AND cheaper than a loose one at 2048.
+  key.shadow.mapSize.set(1536, 1536);
   const sc = key.shadow.camera;
-  sc.left = -170; sc.right = 170; sc.top = 170; sc.bottom = -170;
-  sc.near = 20; sc.far = 560;
-  key.shadow.bias = -0.0009;
-  key.shadow.normalBias = 0.6;
+  sc.left = -115; sc.right = 115; sc.top = 115; sc.bottom = -115;
+  sc.near = 40; sc.far = 480;
+  key.shadow.bias = -0.0007;
+  key.shadow.normalBias = 0.5;
   scene.add(key);
 
-  const rim = new THREE.DirectionalLight(0x4aa8ff, 0.8);
-  rim.position.set(180, 80, 160);
-  scene.add(rim);
-
-  heroLight = new THREE.PointLight(0xffb070, 26, 70, 2);
-  scene.add(heroLight);
+  const fill = new THREE.DirectionalLight(0xa8ccff, 0.35);
+  fill.position.set(170, 90, 150);
+  scene.add(fill);
 
   // environment reflections for the paintwork
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -133,7 +139,7 @@ function init() {
   // ── post ──
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.40, 0.66, 0.90);
+  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * 0.5, innerHeight * 0.5), 0.14, 0.7, 0.95);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -158,7 +164,7 @@ function init() {
 function enter() {
   $('#loader').classList.add('done');
   document.body.classList.add('live');
-  setTimeout(() => toast('Tekan “Follow Car” untuk ikut kereta pusing track'), 1400);
+  setTimeout(() => toast('Drag to look around  ·  Follow Car to ride along'), 1400);
 }
 
 /* ═══════════ cars on track ═══════════ */
@@ -226,7 +232,6 @@ function placeHero(dt) {
   orient(hero.group, s, lean, hero.lane);
   const spin = (S.v / (hero.spec.wheel.r)) * dt;
   for (const w of hero.wheels) w.rotation.x -= spin;
-  heroLight.position.copy(s.pos).addScaledVector(s.up, 6.5);
   return s;
 }
 
@@ -296,7 +301,7 @@ function updateCamera(dt) {
     camPos.copy(car)
       .addScaledVector(s.fwd, B.len * 0.42)
       .addScaledVector(s.up, W.r + B.hgt + 0.42);
-    camLook.copy(car).addScaledVector(s.fwd, 30).addScaledVector(s.up, 2.2);
+    camLook.copy(car).addScaledVector(s.fwd, 18).addScaledVector(s.up, 1.2);
     damp = 0.4;
     camera.up.lerp(s.up, 0.25).normalize();
 
@@ -312,8 +317,8 @@ function updateCamera(dt) {
 
   } else { // cinematic
     const a = S.clock * 0.055;
-    const r = 215 + Math.sin(S.clock * 0.09) * 40;
-    camPos.set(Math.cos(a) * r, 78 + Math.sin(S.clock * 0.13) * 26, Math.sin(a) * r);
+    const r = 170 + Math.sin(S.clock * 0.09) * 30;
+    camPos.set(Math.cos(a) * r, 100 + Math.sin(S.clock * 0.13) * 18, Math.sin(a) * r);
     camLook.set(0, 8, 0).lerp(car, 0.4);
     damp = 0.02;
     camera.up.lerp(THREE.Object3D.DEFAULT_UP, 0.05).normalize();
@@ -425,6 +430,61 @@ function buildUI() {
     else if (k === 'f') setCam(S.cam === 'chase' ? 'cinematic' : 'chase');
     else if ('1234'.includes(k)) setCam(['cinematic', 'chase', 'onboard', 'orbit'][+k - 1]);
   });
+
+  // hold left/right (or A/D) to swing around the track
+  addEventListener('keydown', e => {
+    const k = e.key;
+    const dir = (k === 'ArrowLeft' || k === 'a' || k === 'A') ? 1
+      : (k === 'ArrowRight' || k === 'd' || k === 'D') ? -1 : 0;
+    if (!dir) return;
+    e.preventDefault();
+    if (S.cam !== 'orbit') setCam('orbit');
+    swing(dir * 0.06);
+  });
+}
+
+/** Rotate the free camera around whatever it is looking at. */
+function swing(dTheta) {
+  const off = camera.position.clone().sub(controls.target);
+  off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, dTheta);
+  camera.position.copy(controls.target).add(off);
+  controls.update();
+}
+
+/**
+ * Drop resolution before the frame rate drops. Downgrade only — an
+ * up/down ladder oscillates right on the threshold and looks worse than
+ * simply settling one step lower.
+ */
+const QUALITY = [
+  { ratio: 0.75, bloom: false, label: 'Performance' },
+  { ratio: 1.0, bloom: true, label: 'Balanced' },
+  { ratio: Math.min(devicePixelRatio, 1.5), bloom: true, label: 'High' },
+];
+let qLevel = 2, qAcc = 0, qFrames = 0, qStrikes = 0;
+
+function applyQuality() {
+  const q = QUALITY[qLevel];
+  renderer.setPixelRatio(q.ratio);
+  renderer.setSize(innerWidth, innerHeight, false);
+  composer.setSize(innerWidth, innerHeight);
+  bloom.enabled = q.bloom;
+}
+
+function adaptQuality(dt) {
+  if (qLevel === 0) return;
+  qAcc += dt; qFrames++;
+  if (qAcc < 2.5) return;
+  const fps = qFrames / qAcc;
+  qAcc = 0; qFrames = 0;
+  if (fps < 45) {
+    if (++qStrikes >= 2) {
+      qStrikes = 0;
+      qLevel--;
+      applyQuality();
+      toast(`Graphics set to ${QUALITY[qLevel].label} for a smoother frame rate`);
+    }
+  } else qStrikes = 0;
 }
 
 function movePill() {
@@ -536,10 +596,11 @@ function tick(now) {
   }
   placeHero(S.playing ? dt : 0);
   updateCamera(dt);
-  animateCity(scene.userData.city, S.clock);
   updateSound();
   updateHUD(dt);
+  adaptQuality(dt);
 
+  renderer.info.reset();
   composer.render();
 }
 
@@ -563,9 +624,23 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
-  bloom.setSize(innerWidth, innerHeight);
+  bloom.setSize(innerWidth * 0.5, innerHeight * 0.5);
   movePill();
 }
+
+/* ═══════════ profiling hook ═══════════ */
+// Handy from the console: HOTLAP.info -> draw calls, triangles, quality level.
+window.HOTLAP = {
+  get info() {
+    return {
+      calls: renderer.info.render.calls,
+      triangles: renderer.info.render.triangles,
+      programs: renderer.info.programs?.length,
+      quality: QUALITY[qLevel].label,
+      pixelRatio: renderer.getPixelRatio(),
+    };
+  },
+};
 
 /* ═══════════ go ═══════════ */
 try {
