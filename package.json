@@ -1,0 +1,14 @@
+{
+  "name": "hotlap",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Hot Wheels style 3D track experience — procedural circuit, switchable cars, glass UI.",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "test": "node --test tests/geometry.test.mjs"
+  },
+  "devDependencies": {
+    "three": "0.160.0"
+  }
+}

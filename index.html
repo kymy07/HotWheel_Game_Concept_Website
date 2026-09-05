@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>HOTLAP — Track Experience</title>
+<meta name="description" content="An interactive Hot Wheels style track experience." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏎️</text></svg>" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+
+<!-- ══════════ LOADER ══════════ -->
+<div id="loader">
+  <div class="loader-inner">
+    <div class="loader-logo">
+      <svg viewBox="0 0 64 64" class="mark" aria-hidden="true"><defs><linearGradient id="lg-loader" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff9d2e"/><stop offset="55%" stop-color="#ff5a1f"/><stop offset="100%" stop-color="#ff2d55"/></linearGradient></defs><path d="M32 4C18 12 12 22 12 32a20 20 0 0 0 40 0c0-6-3-11-7-15 1 6-1 10-4 12 1-9-3-18-9-25Z" fill="url(#lg-loader)"/><circle cx="32" cy="36" r="8" fill="#0b0d12" opacity=".55"/><circle cx="32" cy="36" r="3.4" fill="#fff" opacity=".9"/></svg>
+      <div class="loader-word">HOT<span>LAP</span></div>
+    </div>
+    <div class="loader-bar"><i id="loader-fill"></i></div>
+    <div class="loader-status" id="loader-status">Building track geometry…</div>
+    <button id="enter-btn" class="enter-btn" disabled>
+      <span>ENTER THE TRACK</span>
+      <svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ══════════ HEADER ══════════ -->
+<header class="glass header" id="header">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" class="mark" aria-hidden="true"><defs><linearGradient id="lg-header" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff9d2e"/><stop offset="55%" stop-color="#ff5a1f"/><stop offset="100%" stop-color="#ff2d55"/></linearGradient></defs><path d="M32 4C18 12 12 22 12 32a20 20 0 0 0 40 0c0-6-3-11-7-15 1 6-1 10-4 12 1-9-3-18-9-25Z" fill="url(#lg-header)"/><circle cx="32" cy="36" r="8" fill="#0b0d12" opacity=".55"/><circle cx="32" cy="36" r="3.4" fill="#fff" opacity=".9"/></svg>
+    <div class="brand-text">
+      <div class="brand-name">HOT<span>LAP</span></div>
+      <div class="brand-sub">Track Experience</div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-link is-active" data-scroll="garage">Garage</button>
+    <button class="nav-link" data-scroll="track">Track</button>
+    <button class="nav-link" data-scroll="stats">Telemetry</button>
+  </nav>
+
+  <div class="header-right">
+    <div class="logo-strip" title="Partners">
+      <span class="chip">⌁ VOLTEC</span>
+      <span class="chip">◆ APEXCO</span>
+      <span class="chip">✦ NITRO9</span>
+    </div>
+    <button class="icon-btn" id="sound-btn" title="Engine sound">
+      <svg viewBox="0 0 24 24" class="i-off"><path d="M11 5 6 9H3v6h3l5 4V5Z" fill="currentColor"/><path d="m17 9 4 6M21 9l-4 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24" class="i-on"><path d="M11 5 6 9H3v6h3l5 4V5Z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <button class="icon-btn" id="fs-btn" title="Fullscreen">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ══════════ GARAGE PANEL (left) ══════════ -->
+<aside class="glass panel garage" id="garage">
+  <div class="panel-head">
+    <h2>Garage</h2>
+    <span class="badge" id="car-index">1 / 5</span>
+  </div>
+  <div class="car-list" id="car-list"></div>
+  <div class="panel-foot">
+    <div class="hint"><kbd>C</kbd> next car</div>
+  </div>
+</aside>
+
+<!-- ══════════ TELEMETRY (right) ══════════ -->
+<aside class="glass panel telemetry" id="stats">
+  <div class="speedo">
+    <svg viewBox="0 0 120 120" class="dial">
+      <circle cx="60" cy="60" r="52" class="dial-track"/>
+      <circle cx="60" cy="60" r="52" class="dial-fill" id="dial-fill"/>
+    </svg>
+    <div class="speedo-read">
+      <b id="speed-val">0</b><i>km/h</i>
+    </div>
+  </div>
+  <div class="tele-rows">
+    <div class="tele-row"><span>Lap</span><b id="lap-val">1</b></div>
+    <div class="tele-row"><span>Last lap</span><b id="last-val">--.--</b></div>
+    <div class="tele-row"><span>Best lap</span><b id="best-val">--.--</b></div>
+    <div class="tele-row"><span>Section</span><b id="sect-val">Start / Finish</b></div>
+  </div>
+  <div class="g-meter">
+    <div class="g-bar"><i id="g-fill"></i></div>
+    <span>G-Force</span>
+  </div>
+</aside>
+
+<!-- ══════════ FOOTER DOCK ══════════ -->
+<footer class="glass footer" id="track">
+  <div class="dock-group">
+    <button class="dock-btn primary" id="follow-btn">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Follow Car</span>
+    </button>
+    <button class="dock-btn" id="play-btn">
+      <svg viewBox="0 0 24 24" class="i-pause"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg>
+      <svg viewBox="0 0 24 24" class="i-play"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>
+      <span class="lbl">Pause</span>
+    </button>
+  </div>
+
+  <div class="dock-sep"></div>
+
+  <div class="seg" id="cam-seg">
+    <i class="seg-pill" id="seg-pill"></i>
+    <button class="seg-btn is-active" data-cam="cinematic">Cinematic</button>
+    <button class="seg-btn" data-cam="chase">Chase</button>
+    <button class="seg-btn" data-cam="onboard">Onboard</button>
+    <button class="seg-btn" data-cam="orbit">Free</button>
+  </div>
+
+  <div class="dock-sep"></div>
+
+  <div class="slider-wrap">
+    <label for="speed-slider">Speed</label>
+    <input type="range" id="speed-slider" min="0.35" max="2.0" step="0.05" value="1" />
+    <output id="speed-out">1.0×</output>
+  </div>
+
+  <div class="dock-sep hide-sm"></div>
+
+  <div class="dock-meta hide-sm">
+    <span id="fps">60 fps</span>
+    <span class="dot"></span>
+    <span>© 2026 HOTLAP</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
